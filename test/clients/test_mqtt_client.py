@@ -137,6 +137,33 @@ class TestMqttClient(TestCase):
         client = self._build()
         self.assertFalse(client.publish_sensor('SER', 'sn', 'SN', '', '', 'x'))
 
+    def test_publish_sensor_skips_none_value(self):
+        client = self._build()
+        with patch.object(mqtt_client_module, 'mqtt', self.paho_module):
+            client.connect()
+            self.paho_client.publish.reset_mock()
+            result = client.publish_sensor('SER', 'acCoupleFreqUpper', 'AC Couple Freq Upper', '', '', None)
+        self.assertTrue(result)
+        self.paho_client.publish.assert_not_called()
+
+    def test_publish_sensor_skips_string_none_value(self):
+        client = self._build()
+        with patch.object(mqtt_client_module, 'mqtt', self.paho_module):
+            client.connect()
+            self.paho_client.publish.reset_mock()
+            result = client.publish_sensor('SER', 'acCoupleFreqUpper', 'AC Couple Freq Upper', '', '', 'None')
+        self.assertTrue(result)
+        self.paho_client.publish.assert_not_called()
+
+    def test_publish_sensor_skips_empty_string_value(self):
+        client = self._build()
+        with patch.object(mqtt_client_module, 'mqtt', self.paho_module):
+            client.connect()
+            self.paho_client.publish.reset_mock()
+            result = client.publish_sensor('SER', 'model', 'Model', '', '', '')
+        self.assertTrue(result)
+        self.paho_client.publish.assert_not_called()
+
     def test_publish_sensor_converts_timestamp_value_to_iso(self):
         client = self._build()
         with patch.object(mqtt_client_module, 'mqtt', self.paho_module):
@@ -164,9 +191,8 @@ class TestMqttClient(TestCase):
             result = client.publish_sensor('SER', 'solarsynk_last_updated', 'Last Updated', '', 'timestamp', '')
 
         self.assertTrue(result)
-        # Only the retained config is published; the invalid empty state is skipped.
-        self.assertEqual(1, self.paho_client.publish.call_count)
-        self.assertTrue(self.paho_client.publish.call_args_list[0].args[0].endswith('/config'))
+        # Empty value is caught by the None/empty guard before reaching timestamp conversion.
+        self.paho_client.publish.assert_not_called()
 
     def test_disconnect_stops_loop_and_disconnects_without_publishing_offline(self):
         client = self._build()

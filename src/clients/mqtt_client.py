@@ -153,6 +153,11 @@ class MqttClient:
         if not self._connected or self._client is None:
             return False
 
+        # Skip sensors whose value is unknown/missing (API returned None or empty).
+        raw = str(value).strip()
+        if value is None or raw in ("None", ""):
+            return True
+
         node = sanitize_entity_id_part(serial)
         object_id = f"solarsynkv3_{node}_{s_name}"
         state_topic = f"{self._base_topic}/{node}/{s_name}"
