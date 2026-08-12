@@ -16,24 +16,18 @@ class Configuration:
         return self._settings.get(key, default)
 
     def home_assistant_url(self):
-        if self.get('use_internal_api', False):
+        if self.get('use_internal_api', False) or not self.get('Home_Assistant_IP', ''):
+            # No explicit IP means we're on the local HA OS instance; use the Supervisor API.
             return 'http://supervisor/core/api'
-        else:
-            if self['Enable_HTTPS']:
-                httpurl_proto = "https"
-            else:
-                httpurl_proto = "http"
 
-            # API URL
-            self.base_url = f"{httpurl_proto}://{self['Home_Assistant_IP']}:{self['Home_Assistant_PORT']}/api"
-
+        httpurl_proto = "https" if self['Enable_HTTPS'] else "http"
+        self.base_url = f"{httpurl_proto}://{self['Home_Assistant_IP']}:{self['Home_Assistant_PORT']}/api"
         return self.base_url
 
     def home_assistant_token(self):
-        if self.get('use_internal_api', False):
+        if self.get('use_internal_api', False) or not self.get('Home_Assistant_IP', ''):
             return self.supervisor_token
-        else:
-            return self['HA_LongLiveToken']
+        return self['HA_LongLiveToken']
 
     def mqtt_enabled(self):
         return bool(self.get('mqtt_enabled', False))

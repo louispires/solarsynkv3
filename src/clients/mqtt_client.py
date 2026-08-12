@@ -198,7 +198,8 @@ class MqttClient:
         if self._client is None:
             return
         try:
-            self.publish_availability("offline")
+            # Don't publish offline here: the LWT handles unexpected disconnects.
+            # Publishing offline on a normal restart makes sensors unavailable during the sleep window.
             self._client.loop_stop()
             self._client.disconnect()
         except Exception:

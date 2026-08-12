@@ -168,13 +168,15 @@ class TestMqttClient(TestCase):
         self.assertEqual(1, self.paho_client.publish.call_count)
         self.assertTrue(self.paho_client.publish.call_args_list[0].args[0].endswith('/config'))
 
-    def test_disconnect_publishes_offline_and_stops(self):
+    def test_disconnect_stops_loop_and_disconnects_without_publishing_offline(self):
         client = self._build()
         with patch.object(mqtt_client_module, 'mqtt', self.paho_module):
             client.connect()
             self.paho_client.publish.reset_mock()
             client.disconnect()
 
-        self.paho_client.publish.assert_any_call('solarsynkv3/status', 'offline', qos=1, retain=True)
+        # offline must NOT be published on a clean exit — LWT handles unexpected drops.
+        published_topics = [call.args[0] for call in self.paho_client.publish.call_args_list]
+        self.assertNotIn('solarsynkv3/status', published_topics)
         self.paho_client.loop_stop.assert_called_once()
         self.paho_client.disconnect.assert_called_once()
