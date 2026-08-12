@@ -137,7 +137,6 @@ def GetNewSettingsFromHAEntity(SunSynkToken,Serial):
 
     except requests.exceptions.RequestException as e:
         print(ConsoleColor.FAIL + f"Error: Failed to connect to Home Assistant API. {e}" + ConsoleColor.ENDC)
-        from src.clients.home_assistant_client import sanitize_entity_id_part
         settings_name = "solarsynkv3_" + sanitize_entity_id_part(Serial) + "_settings"
         print(f"You probably did not create the settings entity. Manually create it for inverter with serial " + ConsoleColor.OKCYAN + Serial + ConsoleColor.ENDC + " In the HA GUI in menu [Settings] -> [Devices & Services] -> [Helpers] tab -> [+ CREATE HELPER]. Choose [Text] and name it: " + ConsoleColor.OKCYAN + settings_name + ConsoleColor.ENDC)
 
