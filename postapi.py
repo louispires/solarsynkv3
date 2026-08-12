@@ -1,4 +1,15 @@
 from src.clients.home_assistant_client import HomeAssistantClient, sanitize_entity_id_part
+from src.clients import mqtt_client
+from src.configuration.configuration import Configuration
+
+_config = None
+
+
+def _get_config():
+    global _config
+    if _config is None:
+        _config = Configuration()
+    return _config
 
 
 def PostHAEntity(Serial,UOM,UOMLong,fName,sName,EntityVal):
@@ -16,6 +27,11 @@ def PostHAEntity(Serial,UOM,UOMLong,fName,sName,EntityVal):
         FAIL = "\033[31m"
         ENDC = "\033[0m"
         BOLD = "\033[1m"
+
+    if _get_config().mqtt_enabled():
+        if mqtt_client.get_client().publish_sensor(Serial, sName, fName, UOM, UOMLong, EntityVal):
+            print("MQTT Entity: " + ConsoleColor.WARNING + "solarsynkv3_" + sanitize_entity_id_part(Serial) + "_" + sName + ":" + ConsoleColor.OKCYAN + f" {EntityVal} {UOM}" + ConsoleColor.ENDC + ConsoleColor.OKGREEN + " OK" + ConsoleColor.ENDC)
+        return
 
     home_assistant_client = HomeAssistantClient()
 
@@ -85,6 +101,11 @@ def ConnectionTest(Serial,UOM,UOMLong,fName,sName,EntityVal):
         FAIL = "\033[31m"
         ENDC = "\033[0m"
         BOLD = "\033[1m"
+
+    if _get_config().mqtt_enabled():
+        if mqtt_client.get_client().connect():
+            return "Connection Success"
+        return "Connection Failed connecting to MQTT broker"
 
     home_assistant_client = HomeAssistantClient()
 

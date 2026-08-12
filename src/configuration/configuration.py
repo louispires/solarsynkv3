@@ -34,3 +34,26 @@ class Configuration:
             return self.supervisor_token
         else:
             return self['HA_LongLiveToken']
+
+    def mqtt_enabled(self):
+        return bool(self.get('mqtt_enabled', False))
+
+    def mqtt_host(self):
+        # Manual option wins, otherwise fall back to the Supervisor-provided MQTT service.
+        return self.get('mqtt_host') or os.environ.get('MQTT_HOST') or ''
+
+    def mqtt_port(self):
+        port = self.get('mqtt_port') or os.environ.get('MQTT_PORT')
+        return int(port) if port else 1883
+
+    def mqtt_username(self):
+        return self.get('mqtt_username') or os.environ.get('MQTT_USERNAME') or ''
+
+    def mqtt_password(self):
+        return self.get('mqtt_password') or os.environ.get('MQTT_PASSWORD') or ''
+
+    def mqtt_discovery_prefix(self):
+        return self.get('mqtt_discovery_prefix') or 'homeassistant'
+
+    def mqtt_base_topic(self):
+        return self.get('mqtt_base_topic') or 'solarsynkv3'
