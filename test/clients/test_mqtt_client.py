@@ -1,9 +1,10 @@
 import json
+from datetime import datetime
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 import src.clients.mqtt_client as mqtt_client_module
-from src.clients.mqtt_client import MqttClient, _discovery_fields
+from src.clients.mqtt_client import MqttClient, _discovery_fields, _to_iso8601
 
 
 def _configuration(**overrides):
@@ -32,8 +33,29 @@ class TestDiscoveryFields(TestCase):
     def test_plain_sensor_has_no_class_unit_or_state_class(self):
         self.assertEqual((None, None, None), _discovery_fields('', ''))
 
+    def test_timestamp_keeps_device_class_without_unit_or_state_class(self):
+        self.assertEqual(('timestamp', None, None), _discovery_fields('', 'timestamp'))
+
     def test_unknown_device_class_is_dropped_but_unit_kept(self):
         self.assertEqual((None, 'A', 'measurement'), _discovery_fields('A', 'not_a_class'))
+
+
+class TestToIso8601(TestCase):
+    def test_converts_slash_format_to_aware_iso(self):
+        result = _to_iso8601('2026/08/12 20:18:50')
+        parsed = datetime.fromisoformat(result)
+        self.assertIsNotNone(parsed.tzinfo)
+        self.assertEqual((2026, 8, 12, 20, 18, 50), (parsed.year, parsed.month, parsed.day, parsed.hour, parsed.minute, parsed.second))
+
+    def test_converts_dash_format(self):
+        result = _to_iso8601('2026-08-12 20:18:50')
+        self.assertIsNotNone(datetime.fromisoformat(result).tzinfo)
+
+    def test_empty_returns_none(self):
+        self.assertIsNone(_to_iso8601(''))
+
+    def test_unparseable_returns_none(self):
+        self.assertIsNone(_to_iso8601('not a date'))
 
 
 class TestMqttClient(TestCase):
@@ -114,6 +136,37 @@ class TestMqttClient(TestCase):
     def test_publish_sensor_returns_false_when_not_connected(self):
         client = self._build()
         self.assertFalse(client.publish_sensor('SER', 'sn', 'SN', '', '', 'x'))
+
+    def test_publish_sensor_converts_timestamp_value_to_iso(self):
+        client = self._build()
+        with patch.object(mqtt_client_module, 'mqtt', self.paho_module):
+            client.connect()
+            self.paho_client.publish.reset_mock()
+            client.publish_sensor('SER', 'solarsynk_last_updated', 'Last Updated', '', 'timestamp', '2026/08/12 20:18:50')
+
+        config_call = self.paho_client.publish.call_args_list[0]
+        state_call = self.paho_client.publish.call_args_list[1]
+
+        config = json.loads(config_call.args[1])
+        self.assertEqual('timestamp', config['device_class'])
+        self.assertNotIn('state_class', config)
+        self.assertNotIn('unit_of_measurement', config)
+
+        published = datetime.fromisoformat(state_call.args[1])
+        self.assertIsNotNone(published.tzinfo)
+        self.assertEqual(20, published.hour)
+
+    def test_publish_sensor_skips_state_for_empty_timestamp(self):
+        client = self._build()
+        with patch.object(mqtt_client_module, 'mqtt', self.paho_module):
+            client.connect()
+            self.paho_client.publish.reset_mock()
+            result = client.publish_sensor('SER', 'solarsynk_last_updated', 'Last Updated', '', 'timestamp', '')
+
+        self.assertTrue(result)
+        # Only the retained config is published; the invalid empty state is skipped.
+        self.assertEqual(1, self.paho_client.publish.call_count)
+        self.assertTrue(self.paho_client.publish.call_args_list[0].args[0].endswith('/config'))
 
     def test_disconnect_publishes_offline_and_stops(self):
         client = self._build()

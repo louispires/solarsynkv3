@@ -1,4 +1,5 @@
 import threading
+from datetime import datetime
 
 from src.clients.home_assistant_client import sanitize_entity_id_part
 from src.configuration.configuration import Configuration
@@ -28,14 +29,52 @@ _DEVICE_CLASS_UNITS = {
     "temperature": {"°C", "℃", "°F", "K"},
     "frequency": {"Hz", "kHz"},
     "battery": {"%"},
-    "timestamp": {"", None},
 }
+
+_TIMESTAMP_FORMATS = (
+    "%Y/%m/%d %H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y/%m/%d %H:%M",
+    "%Y-%m-%d %H:%M",
+)
+
+
+def _to_iso8601(value):
+    """Convert a provider datetime string to a timezone-aware ISO 8601 string.
+
+    Returns None when the value is empty or cannot be parsed, so the caller can
+    skip publishing an invalid timestamp state.
+    """
+    text = str(value).strip()
+    if not text:
+        return None
+
+    parsed = None
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        for fmt in _TIMESTAMP_FORMATS:
+            try:
+                parsed = datetime.strptime(text, fmt)
+                break
+            except ValueError:
+                continue
+
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        # Provider timestamps are naive local time; attach the container's local zone.
+        parsed = parsed.astimezone()
+    return parsed.isoformat()
 
 
 def _discovery_fields(uom, uom_long):
     """Return validated (device_class, unit, state_class) for a discovery config."""
     unit = uom or None
     device_class = uom_long or None
+
+    if device_class == "timestamp":
+        return "timestamp", None, None
 
     if device_class in _DEVICE_CLASS_UNITS:
         allowed = _DEVICE_CLASS_UNITS[device_class]
@@ -49,10 +88,6 @@ def _discovery_fields(uom, uom_long):
     elif device_class is not None or unit is not None:
         state_class = "measurement"
     else:
-        state_class = None
-
-    # timestamp is not a measurement
-    if device_class == "timestamp":
         state_class = None
 
     return device_class, unit, state_class
@@ -147,7 +182,16 @@ class MqttClient:
 
         import json
         self._client.publish(config_topic, json.dumps(config), qos=0, retain=True)
-        self._client.publish(state_topic, str(value), qos=0, retain=True)
+
+        state_value = str(value)
+        if device_class == "timestamp":
+            iso_value = _to_iso8601(value)
+            if iso_value is None:
+                # Empty/unparseable timestamp: keep the retained config but skip the invalid state.
+                return True
+            state_value = iso_value
+
+        self._client.publish(state_topic, state_value, qos=0, retain=True)
         return True
 
     def disconnect(self):
