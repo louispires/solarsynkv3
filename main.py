@@ -11,6 +11,7 @@ import traceback
 from datetime import datetime
 
 from src.clients.home_assistant_client import sanitize_entity_id_part
+from src.clients import mqtt_client
 
 # Define console colors for readability
 class ConsoleColor:    
@@ -173,5 +174,8 @@ if BearerToken:
         VarCurrentDate = datetime.now()
         print(f"Script completion time: {ConsoleColor.OKBLUE} {VarCurrentDate} {ConsoleColor.ENDC}") 
 
+
+# Mark MQTT offline and disconnect cleanly (no-op when MQTT is disabled)
+mqtt_client.close_client()
 
 print(ConsoleColor.OKBLUE + "Script execution completed." + ConsoleColor.ENDC)
